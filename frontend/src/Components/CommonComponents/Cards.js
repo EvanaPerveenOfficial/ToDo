@@ -50,7 +50,7 @@ const Cards = ({ cards, onDelete }) => {
 
         setEditedTitle(task.title);
         setEditedDescription(task.description);
-        setEditedDueDate(task.due_date);
+        setEditedDueDate(task.due_date ? new Date(task.due_date).toISOString().split('T')[0] : '');
         setCategory(task.category);
     };
 
@@ -135,10 +135,24 @@ const Cards = ({ cards, onDelete }) => {
                 setShowEditModal(false);
                 onDelete();
             } else {
-                console.error('Failed to edit the task:', response.statusText);
+                const errorData = await response.json();
+                if (response.status === 500 && errorData.detail.includes('due_date')) {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Validation Error',
+                        text: 'Due date must be greater than the current date.',
+                    });
+                } else {
+                    console.error('Failed to edit the task:', response.statusText);
+                }
             }
         } catch (error) {
             console.error('Error editing the task:', error);
+            Swal.fire({
+                icon: 'error',
+                title: 'Oops...',
+                text: 'Failed to edit the task. Please try again later.',
+            });
         }
     };
 
@@ -180,16 +194,16 @@ const Cards = ({ cards, onDelete }) => {
 
                     <div className="card-image-container">
                         {task.status === true ? (
-                            <img src={complete} height="150px" width="150px" className='imageClass' alt={task.status} />
+                            <img src={complete} height="120px" width="120px" className='imageClass' alt={task.status} />
                         ) : (
                             task.due_date && new Date(task.due_date) < new Date() ? (
-                                <img src={incomplete} height="150px" width="150px" className='imageClass' alt={task.status} />
+                                <img src={incomplete} height="120px" width="120px" className='imageClass' alt={task.status} />
                             ) : (
-                                <img src={pending} height="150px" width="150px" className='imageClass' alt={task.status} />
+                                <img src={pending} height="120px" width="120px" className='imageClass' alt={task.status} />
                             )
                         )}
                     </div>
-                    <h3 className="truncated-description">{task.title}</h3>
+                    <h3 className="truncated-description">{task.id} - {task.title}</h3>
                     <hr />
                     <p className="truncated-description">{task.description}</p>
                     {task && task.due_date !== null && (
@@ -220,8 +234,8 @@ const Cards = ({ cards, onDelete }) => {
                         </div>
 
                         <hr />
-                        <h3>{selectedCard.title}</h3>
-                        <p className='modal-description'>{selectedCard.description}</p>
+                        <h3>Title:  {selectedCard.title}</h3>
+                        <p className='modal-description'>Details:  {selectedCard.description}</p>
                         <hr />
 
                         <div className="card-buttons">

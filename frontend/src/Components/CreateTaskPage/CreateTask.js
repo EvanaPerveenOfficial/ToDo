@@ -54,7 +54,13 @@ const CreateTask = () => {
                 setCategory('low');
                 navigate('/home');
             } else {
-                console.error('Error creating task:', response.statusText);
+                const errorData = await response.json();
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Failed to Create Task',
+                    text: errorData.detail[0].msg || 'Unknown error occurred',
+                    confirmButtonText: 'OK'
+                });
             }
         } catch (error) {
             console.error('Error creating task:', error);
@@ -100,7 +106,7 @@ const CreateTask = () => {
                         </div>
 
                         <div className="form-group">
-                            <label className="label-cat" htmlFor="category">Category:</label>
+                            <label className="label-cat" htmlFor="category">Priority:</label>
                             <select
                                 className="select-cat"
                                 id="category"

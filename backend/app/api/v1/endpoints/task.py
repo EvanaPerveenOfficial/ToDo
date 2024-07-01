@@ -2,6 +2,7 @@ from datetime import datetime
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Form, HTTPException, status
+from pydantic import ValidationError
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -15,7 +16,7 @@ from app.db.crud.crud_task import task_crud
 from app.db.database import get_db
 from app.model.base_model import Category
 from app.schema.auth_schema import TokenData
-from app.schema.task_schema import Message, TaskBase, TaskCreate, TaskInDB, TaskList
+from app.schema.task_schema import Message, TaskBase, TaskCreate, TaskInDB, TaskList, TaskUpdate
 from logger import log
 
 router = APIRouter(
@@ -74,7 +75,7 @@ async def read_tasks(
         tasks, total = await task_crud.get_multi_with_query(
             db=db,
             user_id=int(token_data.id) if not admin else None,
-            query=query,
+            title_query=query,
             skip=skip,
             limit=limit,
         )
@@ -147,9 +148,13 @@ async def search_tasks(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"{SystemMessages.ERROR_FAILED_TO_SEARCH_TASKS} {str(e)}",
         )
-        
-        
-@router.get("/search-delete-requested-tasks/", response_model=TaskList, status_code=status.HTTP_200_OK)
+
+
+@router.get(
+    "/search-delete-requested-tasks/",
+    response_model=TaskList,
+    status_code=status.HTTP_200_OK,
+)
 async def search_delete_requested_tasks(
     query: str,
     skip: int = 0,
@@ -189,7 +194,6 @@ async def filter_tasks(
 ):
     try:
         admin = admin_role_check(token_data.role)
-        
 
         log.info(
             f"{SystemMessages.LOG_FETCH_FILTER_TASKS.format(task_status=task_status, category=category, due_date=due_date, skip=skip, limit=limit, user_id=token_data.id, user_role=token_data.role)}"
@@ -245,7 +249,10 @@ async def read_task(
         )
 
 
-@router.put("/tasks/{task_id}", status_code=status.HTTP_200_OK, response_model=TaskInDB)
+@router.put(
+    "/tasks/{task_id}", 
+    status_code=status.HTTP_200_OK, 
+    response_model=TaskInDB)
 async def update_task(
     task_id: int,
     owner_id: int = Form(...),
@@ -266,19 +273,20 @@ async def update_task(
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="Task not found"
             )
+        category_enum = validate_and_convert_enum_value(category, Category)
+        try:
+            updated_data = TaskUpdate(owner_id=owner_id, title=title, description=description, category=category_enum, due_date=due_date)
+        except ValidationError as ve:
+            log.error(f"Validation error: {ve}")
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(ve))
+
+        
         else:
             if (
                 int(token_data.id) == int(db_task.owner_id)
                 or token_data.role == "admin"
             ):
-                category_enum = validate_and_convert_enum_value(category, Category)
-                task_data = {
-                    "title": title,
-                    "description": description,
-                    "due_date": due_date,
-                    "category": category_enum,
-                    "owner_id": owner_id,
-                }
+                task_data = updated_data.dict(exclude_unset=True)
 
                 updated_task = await task_crud.update(
                     db=db,
